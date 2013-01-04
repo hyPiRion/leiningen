@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [bultitude "0.1.7"]
                  [classlojure "0.6.6"]
+                 [fairbrook "0.1.0"]
                  [useful "0.8.6"]
                  [robert/hooke "1.3.0"]
                  [com.cemerick/pomegranate "0.0.13"

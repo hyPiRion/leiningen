@@ -6,6 +6,9 @@
             [clojure.set :as set]
             [cemerick.pomegranate :as pomegranate]
             [cemerick.pomegranate.aether :as aether]
+            [fairbrook.meta :as meta]
+            [fairbrook.rule :as rule]
+            [fairbrook.util :as u]
             [leiningen.core.utils :as utils]
             [leiningen.core.ssl :as ssl]
             [leiningen.core.user :as user]
@@ -243,58 +246,42 @@
   [obj]
   (-> obj meta :replace))
 
-(defn- meta-merge
+(defn- prepend?
+  [obj]
+  (-> obj meta :prepend))
+
+(def ^:private coll-merge
+  (rule/cond-fn [(u/or-fn prepend? prepend?)
+                 (meta/ff #(concat %2 %1)
+                          #(merge %1 (select-keys %2 [:displace])))]
+                concat))
+
+(def meta-merge
   "Recursively merge values based on the information in their metadata."
-  [left right]
-  (cond (nil? left) right
-        (nil? right) left
+  (rule/cond-fn
+   [[nil? u/_] u/right
+    [u/_ nil?] u/left
 
-        (and (displace? left)   ;; Pick the rightmost
-             (displace? right)) ;; if both are marked as displaceable
-        (with-meta right
-          (merge (meta left) (meta right)))
+    [displace? displace?] (meta/fm u/right)
+    [replace?   replace?] (meta/fm u/right)
 
-        (and (replace? left)    ;; Pick the rightmost
-             (replace? right))  ;; if both are marked as replaceable
-        (with-meta right
-          (merge (meta left) (meta right)))
+    (u/or-fn displace? replace?)
+      (meta/ff u/right
+             #(-> (merge %1 %2) (dissoc :replace :displace))),
 
-        (or (displace? left)
-            (replace? right))
-        (with-meta right
-          (merge (-> right meta (dissoc :replace))
-                 (-> left meta (dissoc :displace))))
+    (u/or-fn replace? displace?)
+      (meta/ff u/left
+             #(-> (merge %2 %1) (dissoc :replace :displace))),
 
-        (or (replace? left)
-            (displace? right))
-        (with-meta left
-          (merge (-> left meta (dissoc :replace))
-                 (-> right meta (dissoc :displace))))
+    [(comp :reduce meta) u/_] (meta/ff #(-> %1 meta :reduce (reduce %1 %2))
+                                       u/left),
 
-        (-> left meta :reduce)
-        (-> left meta :reduce
-            (reduce left right)
-            (with-meta (meta left)))
-
-        (and (map? left) (map? right))
-        (merge-with meta-merge left right)
-
-        (and (set? left) (set? right))
-        (set/union right left)
-
-        (and (coll? left) (coll? right))
-        (if (or (-> left meta :prepend)
-                (-> right meta :prepend))
-          (-> (concat right left)
-              (with-meta (merge (meta left)
-                                (select-keys (meta right) [:displace]))))
-          (concat left right))
-
-        (= (class left) (class right)) right
-
-        :else
-        (do (println left "and" right "have a type mismatch merging profiles.")
-            right)))
+    [map? map?] (partial merge-with #'meta-merge),
+    [set? set?] set/union,
+    [coll? coll?] coll-merge
+    #(= (class %1) (class %2)) u/right]
+   #(do (println %1 "and" %2 "have a type mismatch merging profiles.")
+        %2)))
 
 (defn- apply-profiles [project profiles]
   (reduce (fn [project profile]
