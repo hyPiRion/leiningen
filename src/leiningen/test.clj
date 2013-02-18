@@ -166,7 +166,7 @@ specified test. A default :all test-selector is available to run all tests."
                                    false
                                    log/*exit-process?*)
             *exit-after-tests* (if (= :leiningen (:eval-in project))
-                                   false
+                                   true
                                    *exit-after-tests*)]
     (let [project (project/merge-profiles project [:leiningen/test :test])
           [nses selectors] (read-args tests project)

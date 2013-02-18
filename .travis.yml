@@ -3,10 +3,9 @@ install: cd leiningen-core; lein install; cd ..
 script: bin/lein test
 branches:
   only:
-    - 1.x
-    - master
+    - travis-experimenting
 notifications:
-  irc: "irc.freenode.org#leiningen"
+  irc: "irc.atw-inter.net#aiprog"
 jdk:
   - openjdk6
   - openjdk7
